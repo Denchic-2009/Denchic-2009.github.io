@@ -1,0 +1,332 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Устройство и работа интернета</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #030508; /* Глубокий космос */
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        /* Контейнер для 3D фона */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+        }
+
+        /* Основной контент поверх 3D */
+        .content-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none; /* Чтобы можно было крутить планету мышкой, если добавим контролы */
+        }
+
+        /* Анимированная надпись */
+        .title-container {
+            margin-top: 25vh;
+            text-align: center;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 5rem;
+            font-weight: 900;
+            letter-spacing: 15px;
+            color: #0ff;
+            text-transform: uppercase;
+            margin: 0;
+            text-shadow: 
+                0 0 5px #0ff, 
+                0 0 10px #0ff, 
+                0 0 20px #0ff, 
+                0 0 40px #0088ff, 
+                0 0 80px #0088ff;
+            animation: pulse-glow 3s infinite alternate, glitch 5s infinite;
+        }
+
+        /* Таблица (Glassmorphism) */
+        .info-panel {
+            margin-bottom: 5vh;
+            background: rgba(0, 20, 40, 0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px 30px;
+            width: 80%;
+            max-width: 900px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+            pointer-events: auto;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .info-table th, .info-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+        }
+
+        .info-table th {
+            color: #00ffff;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            width: 30%;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .info-table td {
+            color: #b3e0ff;
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+
+        .info-table tr:last-child th, .info-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .highlight {
+            color: #fff;
+            text-shadow: 0 0 5px #0ff;
+        }
+
+        /* Анимации */
+        @keyframes pulse-glow {
+            0% { text-shadow: 0 0 5px #0ff, 0 0 20px #0ff; }
+            100% { text-shadow: 0 0 10px #0ff, 0 0 40px #0088ff, 0 0 80px #0088ff; }
+        }
+
+        @keyframes glitch {
+            0%, 96%, 98%, 100% { transform: translate(0); }
+            97% { transform: translate(-2px, 2px); }
+            99% { transform: translate(2px, -2px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="content-overlay">
+        <div class="title-container">
+            <h1>Интернет</h1>
+        </div>
+
+        <div class="info-panel">
+            <table class="info-table">
+                <tr>
+                    <th>IP Сервера</th>
+                    <td id="server-ip" class="highlight">104.21.75.123 (Имитация CDN)</td>
+                </tr>
+                <tr>
+                    <th>IP Клиента</th>
+                    <td id="client-ip">Определение...</td>
+                </tr>
+                <tr>
+                    <th>Браузер (User-Agent)</th>
+                    <td id="browser-info">...</td>
+                </tr>
+                <tr>
+                    <th>DNS Серверы</th>
+                    <td>Primary: 8.8.8.8 | Secondary: 1.1.1.1 (Resolved in 14ms)</td>
+                </tr>
+                <tr>
+                    <th>Протоколы</th>
+                    <td>IPv4, TCP, TLS v1.3, HTTP/2</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // --- 1. НАСТРОЙКА 3D СЦЕНЫ (THREE.JS) ---
+        const scene = new THREE.Scene();
+        
+        // Камера: вид сверху под углом (между северным полюсом и экватором)
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 25);
+        camera.lookAt(0, -5, 0); // Смотрим чуть ниже центра, чтобы обрезать нижнюю часть
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- 2. СОЗДАНИЕ ГЛОБУСА ---
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        // Полупрозрачная сфера (океаны)
+        const globeGeometry = new THREE.SphereGeometry(10, 64, 64);
+        const globeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x001133,
+            transparent: true,
+            opacity: 0.6,
+        });
+        const globe = new THREE.Mesh(globeGeometry, globeMaterial);
+        earthGroup.add(globe);
+
+        // Сфера с сеткой (широты и долготы)
+        const wireframeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x0088ff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.15
+        });
+        const wireframe = new THREE.Mesh(globeGeometry, wireframeMaterial);
+        earthGroup.add(wireframe);
+
+        // --- 3. ПОЛЬЗОВАТЕЛИ (УЗЛЫ) ---
+        // Генерируем точки на поверхности сферы
+        const nodesCount = 150;
+        const nodesGeometry = new THREE.BufferGeometry();
+        const nodesPositions = new Float32Array(nodesCount * 3);
+        const nodesVectors = []; // Для удобного вычисления путей пакетов
+
+        for (let i = 0; i < nodesCount; i++) {
+            // Распределение по сфере
+            const phi = Math.acos(-1 + (2 * i) / nodesCount);
+            const theta = Math.sqrt(nodesCount * Math.PI) * phi;
+            
+            const r = 10.1; // Чуть выше поверхности глобуса
+            const x = r * Math.cos(theta) * Math.sin(phi);
+            const y = r * Math.cos(phi);
+            const z = r * Math.sin(theta) * Math.sin(phi);
+
+            nodesPositions[i * 3] = x;
+            nodesPositions[i * 3 + 1] = y;
+            nodesPositions[i * 3 + 2] = z;
+
+            nodesVectors.push(new THREE.Vector3(x, y, z));
+        }
+
+        nodesGeometry.setAttribute('position', new THREE.BufferAttribute(nodesPositions, 3));
+        const nodesMaterial = new THREE.PointsMaterial({
+            color: 0x00ffff,
+            size: 0.2,
+            transparent: true,
+            opacity: 0.8
+        });
+        const nodes = new THREE.Points(nodesGeometry, nodesMaterial);
+        earthGroup.add(nodes);
+
+        // --- 4. ПАКЕТЫ ДАННЫХ (АНИМАЦИЯ ЛИНИЙ) ---
+        const linesGroup = new THREE.Group();
+        earthGroup.add(linesGroup);
+        const activeLines = [];
+
+        // Функция для создания случайного соединения (передачи пакета)
+        function spawnPacket() {
+            if (activeLines.length > 20) return; // Ограничение одновременных линий
+
+            const startIndex = Math.floor(Math.random() * nodesCount);
+            let endIndex = Math.floor(Math.random() * nodesCount);
+            while (startIndex === endIndex) endIndex = Math.floor(Math.random() * nodesCount);
+
+            const startNode = nodesVectors[startIndex];
+            const endNode = nodesVectors[endIndex];
+
+            // Создаем кривую Безье, чтобы линия огибала Землю (взлетала и падала)
+            const midPoint = startNode.clone().add(endNode).multiplyScalar(0.5);
+            midPoint.normalize().multiplyScalar(12 + Math.random() * 3); // Высота дуги
+
+            const curve = new THREE.QuadraticBezierCurve3(startNode, midPoint, endNode);
+            const points = curve.getPoints(50);
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 1
+            });
+
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            linesGroup.add(line);
+
+            activeLines.push({
+                mesh: line,
+                life: 1.0 // Жизненный цикл линии
+            });
+        }
+
+        // --- 5. АНИМАЦИЯ ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Вращение Земли вокруг своей оси
+            earthGroup.rotation.y += 0.001;
+
+            // Рандомно спавним пакеты данных
+            if (Math.random() > 0.8) spawnPacket();
+
+            // Обновляем (затухаем) активные линии
+            for (let i = activeLines.length - 1; i >= 0; i--) {
+                const lineObj = activeLines[i];
+                lineObj.life -= 0.02; // Скорость затухания
+                lineObj.mesh.material.opacity = lineObj.life;
+
+                if (lineObj.life <= 0) {
+                    linesGroup.remove(lineObj.mesh);
+                    lineObj.mesh.geometry.dispose();
+                    lineObj.mesh.material.dispose();
+                    activeLines.splice(i, 1);
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Запуск анимации
+        animate();
+
+        // --- 6. ЗАПОЛНЕНИЕ ДАННЫХ В ТАБЛИЦЕ ---
+        
+        // Получаем IP клиента с помощью публичного API
+        fetch('https://api.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('client-ip').textContent = data.ip;
+                document.getElementById('client-ip').classList.add('highlight');
+            })
+            .catch(() => {
+                document.getElementById('client-ip').textContent = 'Не удалось определить (Блокировка рекламы или сети)';
+            });
+
+        // Получаем данные о браузере
+        document.getElementById('browser-info').textContent = navigator.userAgent;
+
+    </script>
+</body>
+</html>
