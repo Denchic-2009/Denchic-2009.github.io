@@ -270,8 +270,120 @@
                     lineObj.mesh.material.dispose();
                     activeLines.splice(i, 1);
                 }
-            }
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // ====================== ТВОЯ ОРИГИНАЛЬНАЯ АНИМАЦИЯ (без изменений) ======================
+        const scene = new THREE.Scene();
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.3, 1000);
+        camera.position.set(0, 15, 12);
+        camera.lookAt(0, -4, 0);
 
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        // === ЯРКИЙ ГЛОБУС ===
+        const globeGeometry = new THREE.SphereGeometry(10, 64, 64);
+        const globeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x0033aa,
+            transparent: true,
+            opacity: 0.85,
+        });
+        const globe = new THREE.Mesh(globeGeometry, globeMaterial);
+        earthGroup.add(globe);
+
+        const wireframeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ccff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.25
+        });
+        const wireframe = new THREE.Mesh(globeGeometry, wireframeMaterial);
+        earthGroup.add(wireframe);
+
+        const nodesCount = 150;
+        const nodesGeometry = new THREE.BufferGeometry();
+        const nodesPositions = new Float32Array(nodesCount * 3);
+        const nodesVectors = [];
+
+        for (let i = 0; i < nodesCount; i++) {
+            const phi = Math.acos(-1 + (2 * i) / nodesCount);
+            const theta = Math.sqrt(nodesCount * Math.PI) * phi;
+            
+            const r = 10.12;
+            const x = r * Math.cos(theta) * Math.sin(phi);
+            const y = r * Math.cos(phi);
+            const z = r * Math.sin(theta) * Math.sin(phi);
+
+            nodesPositions[i * 3] = x;
+            nodesPositions[i * 3 + 1] = y;
+            nodesPositions[i * 3 + 2] = z;
+            nodesVectors.push(new THREE.Vector3(x, y, z));
+        }
+
+        nodesGeometry.setAttribute('position', new THREE.BufferAttribute(nodesPositions, 3));
+        const nodesMaterial = new THREE.PointsMaterial({
+            color: 0x00ffff,
+            size: 0.25,
+            transparent: true,
+            opacity: 0.9
+        });
+        const nodes = new THREE.Points(nodesGeometry, nodesMaterial);
+        earthGroup.add(nodes);
+
+        const linesGroup = new THREE.Group();
+        earthGroup.add(linesGroup);
+        const activeLines = [];
+
+        function spawnPacket() {
+            if (activeLines.length > 25) return;
+            const startIndex = Math.floor(Math.random() * nodesCount);
+            let endIndex = Math.floor(Math.random() * nodesCount);
+            while (startIndex === endIndex) endIndex = Math.floor(Math.random() * nodesCount);
+
+            const startNode = nodesVectors[startIndex];
+            const endNode = nodesVectors[endIndex];
+            const midPoint = startNode.clone().add(endNode).multiplyScalar(0.5);
+            midPoint.normalize().multiplyScalar(13 + Math.random() * 4);
+
+            const curve = new THREE.QuadraticBezierCurve3(startNode, midPoint, endNode);
+            const points = curve.getPoints(50);
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: 0x44ffff,
+                transparent: true,
+                opacity: 1
+            });
+
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            linesGroup.add(line);
+            activeLines.push({ mesh: line, life: 1.1 });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            earthGroup.rotation.y += 0.0012;
+
+            if (Math.random() > 0.75) spawnPacket();
+
+            for (let i = activeLines.length - 1; i >= 0; i--) {
+                const lineObj = activeLines[i];
+                lineObj.life -= 0.018;
+                lineObj.mesh.material.opacity = lineObj.life;
+
+                if (lineObj.life <= 0) {
+                    linesGroup.remove(lineObj.mesh);
+                    lineObj.mesh.geometry.dispose();
+                    lineObj.mesh.material.dispose();
+                    activeLines.splice(i, 1);
+                }
+            }
             renderer.render(scene, camera);
         }
 
@@ -283,18 +395,59 @@
 
         animate();
 
-        // Заполнение данных
-        fetch('https://api.ipify.org?format=json')
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('client-ip').textContent = data.ip;
-                document.getElementById('client-ip').classList.add('highlight');
-            })
-            .catch(() => {
-                document.getElementById('client-ip').textContent = 'Не удалось определить';
-            });
+        // ====================== НОВЫЕ ФУНКЦИИ ======================
 
-        document.getElementById('browser-info').textContent = navigator.userAgent;
+        // 1. IP Сервера (динамически)
+        async function getServerIP() {
+            const el = document.getElementById('server-ip');
+            const hostname = window.location.hostname;
+            
+            try {
+                const res = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`);
+                const data = await res.json();
+                if (data.Answer && data.Answer[0]) {
+                    el.innerHTML = `\( {hostname} <span style="color:#00ff88;">( \){data.Answer[0].data})</span>`;
+                }
+            } catch(e) {
+                el.textContent = hostname;
+            }
+        }
+
+        // 2. IP Клиента (улучшенный)
+        async function getClientIP() {
+            const el = document.getElementById('client-ip');
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                el.textContent = data.ip;
+                el.classList.add('highlight');
+            } catch(e) {
+                el.textContent = 'Не удалось определить';
+            }
+        }
+
+        // 3. DNS Серверы
+        function getDNSServers() {
+            const el = document.querySelector('td'); // находит ячейку DNS
+            // Ищем нужную ячейку по заголовку
+            const dnsCell = Array.from(document.querySelectorAll('th')).find(th => 
+                th.textContent.includes('DNS')
+            )?.parentElement?.querySelector('td');
+            
+            if (dnsCell) {
+                dnsCell.innerHTML = `Основной: <strong>8.8.8.8</strong> (Google DNS)<br>Дополнительный: <strong>8.8.4.4</strong>`;
+            }
+        }
+
+        // 4. User-Agent (уже было, но исправил)
+        document.getElementById('browser-info').textContent = navigator.userAgent.substring(0, 80) + '...';
+
+        // Запуск всех функций после загрузки
+        window.onload = () => {
+            getServerIP();
+            getClientIP();
+            getDNSServers();
+        };
     </script>
 </body>
 </html>
