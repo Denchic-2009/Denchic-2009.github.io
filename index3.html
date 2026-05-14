@@ -172,7 +172,7 @@
         const globeMaterial = new THREE.MeshBasicMaterial({
             color: 0x0033aa,        // значительно ярче (было 0x001133)
             transparent: true,
-            opacity: 0.85,          // повысили непрозрачность
+            opacity: 0.85,          // повысил непрозрачность
         });
         const globe = new THREE.Mesh(globeGeometry, globeMaterial);
         earthGroup.add(globe);
@@ -273,7 +273,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <script>
-        // ====================== ТВОЯ ОРИГИНАЛЬНАЯ АНИМАЦИЯ (без изменений) ======================
+        // ====================== АНИМАЦИЯ ======================
         const scene = new THREE.Scene();
         
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.3, 1000);
@@ -397,23 +397,30 @@
 
         // ====================== НОВЫЕ ФУНКЦИИ ======================
 
-        // 1. IP Сервера (динамически)
+        // IP Сервера
         async function getServerIP() {
             const el = document.getElementById('server-ip');
             const hostname = window.location.hostname;
             
+            el.textContent = hostname + " (определяем IP...)";
+            
             try {
-                const res = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`);
-                const data = await res.json();
-                if (data.Answer && data.Answer[0]) {
-                    el.innerHTML = `\( {hostname} <span style="color:#00ff88;">( \){data.Answer[0].data})</span>`;
+                const response = await fetch(`https://dns.google/resolve?name=${hostname}&type=A`);
+                const data = await response.json();
+                
+                if (data.Answer && data.Answer[0] && data.Answer[0].data) {
+                    const ip = data.Answer[0].data;
+                    el.innerHTML = `\( {hostname} <span style="color:#00ff88; font-weight:bold;">( \){ip})</span>`;
+                } else {
+                    el.textContent = hostname;
                 }
-            } catch(e) {
+            } catch (error) {
+                console.log("Ошибка получения IP сервера:", error);
                 el.textContent = hostname;
             }
         }
 
-        // 2. IP Клиента (улучшенный)
+        // 2. IP Клиента
         async function getClientIP() {
             const el = document.getElementById('client-ip');
             try {
@@ -439,7 +446,7 @@
             }
         }
 
-        // 4. User-Agent (уже было, но исправил)
+        // 4. User-Agent
         document.getElementById('browser-info').textContent = navigator.userAgent.substring(0, 80) + '...';
 
         // Запуск всех функций после загрузки
